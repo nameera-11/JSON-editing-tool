@@ -1,1 +1,91 @@
-hello checking
+import json
+import os
+import openpyxl # type: ignore
+
+
+# Helper function to navigate and update JSON
+def update_json_path(data, path, new_value):
+    keys = []
+    parts = path.split('.')
+
+    # Parse the path
+    for part in parts:
+        if '[' in part and ']' in part:
+            # Handle array notation like name[0]
+            key, index = part.split('[')
+            index = index.strip(']')
+            keys.append(key)
+            keys.append(int(index))  # Convert index to integer
+        elif part.isdigit():
+            # Handle plain numbers as array indices
+            keys.append(int(part))
+        else:
+            keys.append(part)
+
+    # Traverse the JSON structure
+    # Traverse the JSON structure
+    elem = data
+    for key in keys[:-1]:
+        if isinstance(key, int):  # Handle array index
+            if not isinstance(elem, list):  # If the current element is not a list, convert it
+                elem = elem.setdefault(keys[keys.index(key) - 1], [])  # Ensure the parent key points to a list
+            while len(elem) <= key:  # Expand the list to the required size
+                elem.append({})
+            elem = elem[key]
+        elif isinstance(elem, dict):  # Handle dictionary key
+            elem = elem.setdefault(key, {})  # Create a new dict if the key doesn't exist
+        else:
+            print(f"Invalid path or type mismatch at key: {key}. Current element type: {type(elem)}")
+            return
+
+    # Update the final key
+    last_key = keys[-1]
+    if isinstance(last_key, int):  # Handle array index for the final key
+        if not isinstance(elem, list):  # Ensure the current element is a list
+            elem = elem.setdefault(keys[keys.index(last_key) - 1], [])
+        while len(elem) <= last_key:
+            elem.append({})
+        elem[last_key] = new_value
+    elif isinstance(elem, dict):  # Handle dictionary for the final key
+        elem[last_key] = new_value
+    else:
+        print(f"Invalid path or type mismatch at key: {last_key}. Current element type: {type(elem)}")
+        return
+
+
+
+def main():
+    try:
+        # Load workbook and sheets
+        wb = openpyxl.load_workbook(r"D:\JSON Editing Tool\JsonEditing_VBA.xlsm") #path of your vba
+        home_tab = wb['Home']
+        attribute_sheet = wb['Attributes']
+
+        json_folder_path = home_tab['C5'].value
+
+        for row in attribute_sheet.iter_rows(min_row=2, values_only=True):
+            json_filename, path, new_value = row
+            json_file_path = os.path.join(json_folder_path, json_filename)
+
+            if not os.path.exists(json_file_path):
+                print(f"JSON file not found: {json_file_path}")
+                continue
+
+            with open(json_file_path, 'r', encoding='utf-8') as json_file:
+                json_data = json.load(json_file)
+
+            # Update the JSON with the given path and value
+            update_json_path(json_data, path, new_value)
+
+            with open(json_file_path, 'w', encoding='utf-8') as json_file:
+                json.dump(json_data, json_file, indent=4)
+                print(f"JSON file updated successfully: {json_file_path}")
+
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+
+
+if __name__ == "__main__":
+    main()
+
+
